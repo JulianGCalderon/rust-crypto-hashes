@@ -8,25 +8,29 @@ macro_rules! blake2_impl {
         IV: $iv:expr;
         ROUNDS: $rounds:expr;
     ) => {
+        use $crate::simd::Vector4 as _;
+
         /// Word for the current Blake2 variant.
         pub type Word = $word;
 
-        const _R1: Word = $r1;
-        const _R2: Word = $r2;
-        const _R3: Word = $r3;
-        const _R4: Word = $r4;
+        const R1: u32 = $r1;
+        const R2: u32 = $r2;
+        const R3: u32 = $r3;
+        const R4: u32 = $r4;
         const IV: [Word; 8] = $iv;
 
         /// Default number of rounds.
         pub const ROUNDS: usize = $rounds;
 
+        type Simd4Word = $crate::simd::Simd4<Word>;
+
         #[inline(always)]
-        fn iv0() -> crate::simd::Simd4<Word> {
-            crate::simd::Simd4::<Word>::new(IV[0], IV[1], IV[2], IV[3])
+        fn iv0() -> Simd4Word {
+            Simd4Word::new(IV[0], IV[1], IV[2], IV[3])
         }
         #[inline(always)]
-        fn iv1() -> crate::simd::Simd4<Word> {
-            crate::simd::Simd4::<Word>::new(IV[4], IV[5], IV[6], IV[7])
+        fn iv1() -> Simd4Word {
+            Simd4Word::new(IV[4], IV[5], IV[6], IV[7])
         }
 
         /// Compute the initial state.
@@ -49,8 +53,8 @@ macro_rules! blake2_impl {
 
             // XOR parameter block with IV.
             let h = [
-                iv0() ^ crate::simd::Simd4::<Word>::new(p[0], p[1], p[2], p[3]),
-                iv1() ^ crate::simd::Simd4::<Word>::new(p[4], p[5], p[6], p[7]),
+                iv0() ^ Simd4Word::new(p[0], p[1], p[2], p[3]),
+                iv1() ^ Simd4Word::new(p[4], p[5], p[6], p[7]),
             ];
 
             // TODO: Can we transmute instead?
@@ -66,13 +70,75 @@ macro_rules! blake2_impl {
         /// when compressing the last block. The `f1` flag must be set when
         /// compressing the last block of a layer, in tree-hashing mode.
         pub fn compress<const ROUNDS: usize>(
-            _state: [Word; 8],
-            _message: &[Word; 16],
-            _t: u64,
-            _f0: Word,
-            _f1: Word,
+            state: [Word; 8],
+            message: &[Word; 16],
+            t: u64,
+            f0: Word,
+            f1: Word,
         ) -> [Word; 8] {
-            todo!()
+            use $crate::consts::SIGMA;
+
+            #[cfg_attr(not(feature = "size_opt"), inline(always))]
+            fn quarter_round(v: &mut [Simd4Word; 4], rd: u32, rb: u32, m: Simd4Word) {
+                v[0] = v[0].wrapping_add(v[1]).wrapping_add(m.from_le());
+                v[3] = (v[3] ^ v[0]).rotate_right_const(rd);
+                v[2] = v[2].wrapping_add(v[3]);
+                v[1] = (v[1] ^ v[2]).rotate_right_const(rb);
+            }
+
+            #[cfg_attr(not(feature = "size_opt"), inline(always))]
+            fn shuffle(v: &mut [Simd4Word; 4]) {
+                v[1] = v[1].shuffle_left_1();
+                v[2] = v[2].shuffle_left_2();
+                v[3] = v[3].shuffle_left_3();
+            }
+
+            #[cfg_attr(not(feature = "size_opt"), inline(always))]
+            fn unshuffle(v: &mut [Simd4Word; 4]) {
+                v[1] = v[1].shuffle_right_1();
+                v[2] = v[2].shuffle_right_2();
+                v[3] = v[3].shuffle_right_3();
+            }
+
+            #[cfg_attr(not(feature = "size_opt"), inline(always))]
+            fn round(v: &mut [Simd4Word; 4], m: &[Word; 16], s: &[usize; 16]) {
+                quarter_round(v, R1, R2, Simd4Word::gather(m, s[0], s[2], s[4], s[6]));
+                quarter_round(v, R3, R4, Simd4Word::gather(m, s[1], s[3], s[5], s[7]));
+
+                shuffle(v);
+                quarter_round(v, R1, R2, Simd4Word::gather(m, s[8], s[10], s[12], s[14]));
+                quarter_round(v, R3, R4, Simd4Word::gather(m, s[9], s[11], s[13], s[15]));
+                unshuffle(v);
+            }
+
+            // TODO: Can we transmute instead?
+            let mut h = [
+                Simd4Word::new(state[0], state[1], state[2], state[3]),
+                Simd4Word::new(state[4], state[5], state[6], state[7]),
+            ];
+
+            let t0 = t as Word;
+            let t1 = match Word::BITS {
+                64 => 0,
+                32 => (t >> 32) as Word,
+                _ => unreachable!(),
+            };
+
+            let mut v = [h[0], h[1], iv0(), iv1() ^ Simd4Word::new(t0, t1, f0, f1)];
+
+            // This will get unrolled:
+            // https://play.rust-lang.org/?version=stable&mode=release&edition=2024&gist=f9155c5813c4a2b655f6253059251795
+            for i in 0..ROUNDS {
+                round(&mut v, message, &SIGMA[i % 10]);
+            }
+
+            h[0] = h[0] ^ (v[0] ^ v[2]);
+            h[1] = h[1] ^ (v[1] ^ v[3]);
+
+            // TODO: Can we transmute instead?
+            [
+                h[0].0, h[0].1, h[0].2, h[0].3, h[1].0, h[1].1, h[1].2, h[1].3,
+            ]
         }
     };
 }
