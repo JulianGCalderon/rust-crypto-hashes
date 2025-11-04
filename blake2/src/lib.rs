@@ -43,7 +43,7 @@ use as_bytes::AsBytes;
 use consts::{BLAKE2B_IV, BLAKE2S_IV};
 use simd::{Vector4, u32x4, u64x4};
 
-blake2_impl!(
+blake2_core_impl!(
     Blake2bVarCore,
     "Blake2b",
     u64,
@@ -91,7 +91,7 @@ blake2_mac_impl!(Blake2bMac, Blake2bVarCore, U64, "Blake2b MAC function");
 /// BLAKE2b-512 MAC state.
 pub type Blake2bMac512 = Blake2bMac<U64>;
 
-blake2_impl!(
+blake2_core_impl!(
     Blake2sVarCore,
     "Blake2s",
     u32,
