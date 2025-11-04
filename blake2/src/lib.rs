@@ -39,20 +39,7 @@ mod simd;
 #[macro_use]
 mod macros;
 
-/// Blake2s implementation.
-///
-/// This module implements a low-level API of the Blake2s hash, defined in RFC7693.
-pub mod blake2s {
-    blake2_impl!(
-        word: u32;
-        R1: 16;
-        R2: 12;
-        R3: 8;
-        R4: 7;
-        IV: super::BLAKE2S_IV;
-        ROUNDS: 10;
-    );
-}
+use as_bytes::AsBytes;
 
 /// Blake2b implementation.
 ///
@@ -64,13 +51,10 @@ pub mod blake2b {
         R2: 24;
         R3: 16;
         R4: 63;
-        IV: super::BLAKE2B_IV;
+        IV: crate::consts::BLAKE2B_IV;
         ROUNDS: 12;
     );
 }
-
-use as_bytes::AsBytes;
-use consts::{BLAKE2B_IV, BLAKE2S_IV};
 
 blake2_core_impl!(
     Blake2bVarCore,
@@ -113,6 +97,21 @@ blake2_mac_impl!(Blake2bMac, Blake2bVarCore, U64, "Blake2b MAC function");
 
 /// BLAKE2b-512 MAC state.
 pub type Blake2bMac512 = Blake2bMac<U64>;
+
+/// Blake2s implementation.
+///
+/// This module implements a low-level API of the Blake2s hash, defined in RFC7693.
+pub mod blake2s {
+    blake2_impl!(
+        word: u32;
+        R1: 16;
+        R2: 12;
+        R3: 8;
+        R4: 7;
+        IV: crate::consts::BLAKE2S_IV;
+        ROUNDS: 10;
+    );
+}
 
 blake2_core_impl!(
     Blake2sVarCore,
