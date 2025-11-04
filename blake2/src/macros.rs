@@ -15,21 +15,48 @@ macro_rules! blake2_impl {
         const _R2: Word = $r2;
         const _R3: Word = $r3;
         const _R4: Word = $r4;
-        const _IV: [Word; 8] = $iv;
+        const IV: [Word; 8] = $iv;
 
         /// Default number of rounds.
         pub const ROUNDS: usize = $rounds;
+
+        #[inline(always)]
+        fn iv0() -> crate::simd::Simd4<Word> {
+            crate::simd::Simd4::<Word>::new(IV[0], IV[1], IV[2], IV[3])
+        }
+        #[inline(always)]
+        fn iv1() -> crate::simd::Simd4<Word> {
+            crate::simd::Simd4::<Word>::new(IV[4], IV[5], IV[6], IV[7])
+        }
 
         /// Compute the initial state.
         ///
         /// Panics if either `key_size` or `output_size` is greater than a word.
         pub fn initial_state(
-            _salt: &[Word; 2],
-            _persona: &[Word; 2],
-            _key_size: usize,
-            _output_size: usize,
+            salt: &[Word; 2],
+            persona: &[Word; 2],
+            key_size: usize,
+            output_size: usize,
         ) -> [Word; 8] {
-            todo!()
+            assert!(key_size <= Word::BITS as usize);
+            assert!(output_size <= Word::BITS as usize);
+
+            // Build a parameter block.
+            let mut p = [0; 8];
+            p[0] = 0x0101_0000 ^ ((key_size as Word) << 8) ^ (output_size as Word);
+            p[4..6].copy_from_slice(salt);
+            p[6..8].copy_from_slice(persona);
+
+            // XOR parameter block with IV.
+            let h = [
+                iv0() ^ crate::simd::Simd4::<Word>::new(p[0], p[1], p[2], p[3]),
+                iv1() ^ crate::simd::Simd4::<Word>::new(p[4], p[5], p[6], p[7]),
+            ];
+
+            // TODO: Can we transmute instead?
+            [
+                h[0].0, h[0].1, h[0].2, h[0].3, h[1].0, h[1].1, h[1].2, h[1].3,
+            ]
         }
 
         /// Compresses the `message` block into the `state` vector.
