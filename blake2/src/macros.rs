@@ -1,3 +1,55 @@
+macro_rules! blake2_impl {
+    (
+        word: $word:ty;
+        R1: $r1:expr;
+        R2: $r2:expr;
+        R3: $r3:expr;
+        R4: $r4:expr;
+        IV: $iv:expr;
+        ROUNDS: $rounds:expr;
+    ) => {
+        /// Word for the current Blake2 variant.
+        pub type Word = $word;
+
+        const _R1: Word = $r1;
+        const _R2: Word = $r2;
+        const _R3: Word = $r3;
+        const _R4: Word = $r4;
+        const _IV: [Word; 8] = $iv;
+
+        /// Default number of rounds.
+        pub const ROUNDS: usize = $rounds;
+
+        /// Compute the initial state.
+        ///
+        /// Panics if either `key_size` or `output_size` is greater than a word.
+        pub fn initial_state(
+            _salt: &[Word; 2],
+            _persona: &[Word; 2],
+            _key_size: usize,
+            _output_size: usize,
+        ) -> [Word; 8] {
+            todo!()
+        }
+
+        /// Compresses the `message` block into the `state` vector.
+        ///
+        /// The `t` argument must contain the number of bytes hashed so
+        /// far including the current message. The `f0` flag must be set
+        /// when compressing the last block. The `f1` flag must be set when
+        /// compressing the last block of a layer, in tree-hashing mode.
+        pub fn compress<const ROUNDS: usize>(
+            _state: [Word; 8],
+            _message: &[Word; 16],
+            _t: u64,
+            _f0: Word,
+            _f1: Word,
+        ) -> [Word; 8] {
+            todo!()
+        }
+    };
+}
+
 macro_rules! blake2_core_impl {
     (
         $name:ident, $alg_name:expr, $word:ident, $vec:ident, $bytes:ident,
