@@ -145,7 +145,7 @@ macro_rules! blake2_impl {
 
 macro_rules! blake2_core_impl {
     (
-        $name:ident, $alg_name:expr, $word:ident, $vec:ident, $bytes:ident,
+        $name:ident, $alg_name:expr, $mod:ident, $word:ident, $vec:ident, $bytes:ident,
         $block_size:ident, $R1:expr, $R2:expr, $R3:expr, $R4:expr, $IV:expr,
         $vardoc:expr, $doc:expr,
     ) => {

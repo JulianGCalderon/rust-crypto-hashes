@@ -76,6 +76,7 @@ use simd::{Vector4, u32x4, u64x4};
 blake2_core_impl!(
     Blake2bVarCore,
     "Blake2b",
+    blake2b,
     u64,
     u64x4,
     U64,
@@ -124,6 +125,7 @@ pub type Blake2bMac512 = Blake2bMac<U64>;
 blake2_core_impl!(
     Blake2sVarCore,
     "Blake2s",
+    blake2s,
     u32,
     u32x4,
     U32,
