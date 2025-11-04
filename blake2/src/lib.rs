@@ -12,7 +12,7 @@
 
 pub use digest::{self, Digest};
 
-use core::{fmt, marker::PhantomData, ops::Div};
+use core::{fmt, marker::PhantomData};
 use digest::{
     CustomizedInit, FixedOutput, HashMarker, InvalidOutputSize, MacMarker, Output, Update,
     array::{Array, ArraySize},
@@ -21,7 +21,7 @@ use digest::{
         UpdateCore, VariableOutputCore, VariableOutputCoreCustomized,
     },
     block_buffer::{Lazy, LazyBuffer},
-    consts::{U4, U16, U32, U64, U128},
+    consts::{U16, U32, U64, U128},
     crypto_common::{InvalidLength, Key, KeyInit, KeySizeUser},
     typenum::{IsLessOrEqual, True, Unsigned},
 };
@@ -71,21 +71,13 @@ pub mod blake2b {
 
 use as_bytes::AsBytes;
 use consts::{BLAKE2B_IV, BLAKE2S_IV};
-use simd::{Vector4, u32x4, u64x4};
 
 blake2_core_impl!(
     Blake2bVarCore,
     "Blake2b",
     blake2b,
-    u64,
-    u64x4,
     U64,
     U128,
-    32,
-    24,
-    16,
-    63,
-    BLAKE2B_IV,
     "Blake2b instance with a variable output.",
     "Blake2b instance with a fixed output.",
 );
@@ -126,15 +118,8 @@ blake2_core_impl!(
     Blake2sVarCore,
     "Blake2s",
     blake2s,
-    u32,
-    u32x4,
     U32,
     U64,
-    16,
-    12,
-    8,
-    7,
-    BLAKE2S_IV,
     "Blake2s instance with a variable output.",
     "Blake2s instance with a fixed output.",
 );
