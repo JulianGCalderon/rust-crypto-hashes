@@ -175,59 +175,61 @@ macro_rules! blake2_core_impl {
                 key_size: usize,
                 output_size: usize,
             ) -> Self {
-                assert!(key_size <= $bytes::to_usize());
-                assert!(output_size <= $bytes::to_usize());
-
                 // The number of bytes needed to express two words.
                 let length = $bytes::to_usize() / 4;
                 assert!(salt.len() <= length);
                 assert!(persona.len() <= length);
 
-                // Build a parameter block
-                let mut p = [0 as $word; 8];
-                p[0] = 0x0101_0000 ^ ((key_size as $word) << 8) ^ (output_size as $word);
-
                 // salt is two words long
+                let mut salt_array = [0 as $mod::Word; 2];
                 if salt.len() < length {
                     let mut padded_salt = Array::<u8, <$bytes as Div<U4>>::Output>::default();
                     for i in 0..salt.len() {
                         padded_salt[i] = salt[i];
                     }
-                    p[4] = $word::from_le_bytes(padded_salt[0..length / 2].try_into().unwrap());
-                    p[5] = $word::from_le_bytes(
+                    salt_array[0] =
+                        $word::from_le_bytes(padded_salt[0..length / 2].try_into().unwrap());
+                    salt_array[1] = $word::from_le_bytes(
                         padded_salt[length / 2..padded_salt.len()]
                             .try_into()
                             .unwrap(),
                     );
                 } else {
-                    p[4] = $word::from_le_bytes(salt[0..salt.len() / 2].try_into().unwrap());
-                    p[5] =
+                    salt_array[0] =
+                        $word::from_le_bytes(salt[0..salt.len() / 2].try_into().unwrap());
+                    salt_array[1] =
                         $word::from_le_bytes(salt[salt.len() / 2..salt.len()].try_into().unwrap());
                 }
 
                 // persona is also two words long
+                let mut persona_array = [0 as $mod::Word; 2];
                 if persona.len() < length {
                     let mut padded_persona = Array::<u8, <$bytes as Div<U4>>::Output>::default();
                     for i in 0..persona.len() {
                         padded_persona[i] = persona[i];
                     }
-                    p[6] = $word::from_le_bytes(padded_persona[0..length / 2].try_into().unwrap());
-                    p[7] = $word::from_le_bytes(
+                    persona_array[0] =
+                        $word::from_le_bytes(padded_persona[0..length / 2].try_into().unwrap());
+                    persona_array[1] = $word::from_le_bytes(
                         padded_persona[length / 2..padded_persona.len()]
                             .try_into()
                             .unwrap(),
                     );
                 } else {
-                    p[6] = $word::from_le_bytes(persona[0..length / 2].try_into().unwrap());
-                    p[7] = $word::from_le_bytes(
+                    persona_array[0] =
+                        $word::from_le_bytes(persona[0..length / 2].try_into().unwrap());
+                    persona_array[1] = $word::from_le_bytes(
                         persona[length / 2..persona.len()].try_into().unwrap(),
                     );
                 }
 
+                let h = $mod::initial_state(&salt_array, &persona_array, key_size, output_size);
+                // TODO: Can we transmute instead?
                 let h = [
-                    Self::iv0() ^ $vec::new(p[0], p[1], p[2], p[3]),
-                    Self::iv1() ^ $vec::new(p[4], p[5], p[6], p[7]),
+                    $crate::simd::Simd4::new(h[0], h[1], h[2], h[3]),
+                    $crate::simd::Simd4::new(h[4], h[5], h[6], h[7]),
                 ];
+
                 $name {
                     #[cfg(feature = "reset")]
                     h0: h.clone(),
