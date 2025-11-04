@@ -126,8 +126,6 @@ macro_rules! blake2_impl {
 
             let mut v = [h[0], h[1], iv0(), iv1() ^ Simd4Word::new(t0, t1, f0, f1)];
 
-            // This will get unrolled:
-            // https://play.rust-lang.org/?version=stable&mode=release&edition=2024&gist=f9155c5813c4a2b655f6253059251795
             for i in 0..ROUNDS {
                 round(&mut v, message, &SIGMA[i % 10]);
             }
