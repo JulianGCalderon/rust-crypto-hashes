@@ -124,8 +124,27 @@ macro_rules! blake2_impl {
 
             let mut v = [h[0], h[1], iv0(), iv1() ^ Simd4Word::new(t0, t1, f0, f1)];
 
-            for i in 0..ROUNDS {
-                round(&mut v, message, &SIGMA[i % 10]);
+            // The compiler doesn't unroll the loop in this case, so we hardcode
+            // the most common cases (10 and 12 rounds) to improve performance.
+            if ROUNDS == 10 || ROUNDS == 12 {
+                round(&mut v, message, &SIGMA[0]);
+                round(&mut v, message, &SIGMA[1]);
+                round(&mut v, message, &SIGMA[2]);
+                round(&mut v, message, &SIGMA[3]);
+                round(&mut v, message, &SIGMA[4]);
+                round(&mut v, message, &SIGMA[5]);
+                round(&mut v, message, &SIGMA[6]);
+                round(&mut v, message, &SIGMA[7]);
+                round(&mut v, message, &SIGMA[8]);
+                round(&mut v, message, &SIGMA[9]);
+                if ROUNDS == 12 {
+                    round(&mut v, message, &SIGMA[0]);
+                    round(&mut v, message, &SIGMA[1]);
+                }
+            } else {
+                for i in 0..ROUNDS {
+                    round(&mut v, message, &SIGMA[i % 10]);
+                }
             }
 
             h[0] = h[0] ^ (v[0] ^ v[2]);
