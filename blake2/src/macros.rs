@@ -57,7 +57,6 @@ macro_rules! blake2_impl {
                 iv1() ^ Simd4Word::new(p[4], p[5], p[6], p[7]),
             ];
 
-            // TODO: Can we transmute instead?
             [
                 h[0].0, h[0].1, h[0].2, h[0].3, h[1].0, h[1].1, h[1].2, h[1].3,
             ]
@@ -111,7 +110,6 @@ macro_rules! blake2_impl {
                 unshuffle(v);
             }
 
-            // TODO: Can we transmute instead?
             let mut h = [
                 Simd4Word::new(state[0], state[1], state[2], state[3]),
                 Simd4Word::new(state[4], state[5], state[6], state[7]),
@@ -133,7 +131,6 @@ macro_rules! blake2_impl {
             h[0] = h[0] ^ (v[0] ^ v[2]);
             h[1] = h[1] ^ (v[1] ^ v[3]);
 
-            // TODO: Can we transmute instead?
             [
                 h[0].0, h[0].1, h[0].2, h[0].3, h[1].0, h[1].1, h[1].2, h[1].3,
             ]
