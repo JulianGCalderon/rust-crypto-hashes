@@ -128,28 +128,28 @@ macro_rules! blake2_impl {
                 iv1() ^ Simd4Word::new(t0, t1, f0, f1),
             ];
 
-            // The compiler doesn't unroll the loop in this case, so we hardcode
-            // the most common cases (10 and 12 rounds) to improve performance.
-            if ROUNDS == 10 || ROUNDS == 12 {
+            // // The compiler doesn't unroll the loop in this case, so we hardcode
+            // // the most common cases (10 and 12 rounds) to improve performance.
+            // if ROUNDS == 10 || ROUNDS == 12 {
+            round(&mut v, &m, &SIGMA[0]);
+            round(&mut v, &m, &SIGMA[1]);
+            round(&mut v, &m, &SIGMA[2]);
+            round(&mut v, &m, &SIGMA[3]);
+            round(&mut v, &m, &SIGMA[4]);
+            round(&mut v, &m, &SIGMA[5]);
+            round(&mut v, &m, &SIGMA[6]);
+            round(&mut v, &m, &SIGMA[7]);
+            round(&mut v, &m, &SIGMA[8]);
+            round(&mut v, &m, &SIGMA[9]);
+            if Word::BITS == 64 {
                 round(&mut v, &m, &SIGMA[0]);
                 round(&mut v, &m, &SIGMA[1]);
-                round(&mut v, &m, &SIGMA[2]);
-                round(&mut v, &m, &SIGMA[3]);
-                round(&mut v, &m, &SIGMA[4]);
-                round(&mut v, &m, &SIGMA[5]);
-                round(&mut v, &m, &SIGMA[6]);
-                round(&mut v, &m, &SIGMA[7]);
-                round(&mut v, &m, &SIGMA[8]);
-                round(&mut v, &m, &SIGMA[9]);
-                if ROUNDS == 12 {
-                    round(&mut v, &m, &SIGMA[0]);
-                    round(&mut v, &m, &SIGMA[1]);
-                }
-            } else {
-                for i in 0..ROUNDS {
-                    round(&mut v, &m, &SIGMA[i % 10]);
-                }
             }
+            // } else {
+            //     for i in 0..ROUNDS {
+            //         round(&mut v, &m, &SIGMA[i % 10]);
+            //     }
+            // }
 
             state[0] = state[0] ^ (v[0] ^ v[2]);
             state[1] = state[1] ^ (v[1] ^ v[3]);
