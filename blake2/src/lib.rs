@@ -12,7 +12,7 @@
 
 pub use digest::{self, Digest};
 
-use core::{fmt, marker::PhantomData};
+use core::{fmt, marker::PhantomData, ops::Div};
 use digest::{
     CustomizedInit, FixedOutput, HashMarker, InvalidOutputSize, MacMarker, Output, Update,
     array::{Array, ArraySize},
@@ -21,7 +21,7 @@ use digest::{
         UpdateCore, VariableOutputCore, VariableOutputCoreCustomized,
     },
     block_buffer::{Lazy, LazyBuffer},
-    consts::{U16, U32, U64, U128},
+    consts::{U4, U16, U32, U64, U128},
     crypto_common::{InvalidLength, Key, KeyInit, KeySizeUser},
     typenum::{IsLessOrEqual, True, Unsigned},
 };

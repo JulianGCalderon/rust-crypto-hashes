@@ -164,14 +164,14 @@ macro_rules! blake2_core_impl {
                 output_size: usize,
             ) -> Self {
                 // The number of bytes needed to express two words.
-                let length = $mod::Word::BITS as usize / 4;
+                let length = $bytes::to_usize() / 4;
                 assert!(salt.len() <= length);
                 assert!(persona.len() <= length);
 
                 // salt is two words long
                 let mut salt_array = [0 as $mod::Word; 2];
                 if salt.len() < length {
-                    let mut padded_salt = [0; $mod::Word::BITS as usize / 4];
+                    let mut padded_salt = Array::<u8, <$bytes as Div<U4>>::Output>::default();
                     for i in 0..salt.len() {
                         padded_salt[i] = salt[i];
                     }
@@ -193,7 +193,7 @@ macro_rules! blake2_core_impl {
                 // persona is also two words long
                 let mut persona_array = [0 as $mod::Word; 2];
                 if persona.len() < length {
-                    let mut padded_persona = [0; $mod::Word::BITS as usize / 4];
+                    let mut padded_persona = Array::<u8, <$bytes as Div<U4>>::Output>::default();
                     for i in 0..persona.len() {
                         padded_persona[i] = persona[i];
                     }
