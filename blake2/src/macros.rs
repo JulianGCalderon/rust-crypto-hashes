@@ -230,7 +230,7 @@ macro_rules! blake2_core_impl {
                 out: &mut Output<Self>,
             ) {
                 self.compress(final_block, !0, flag);
-                out.copy_from_slice(self.h.as_bytes())
+                out.copy_from_slice(self.h.map(|w| w.to_le()).as_bytes())
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $mod::Word, f1: $mod::Word) {
