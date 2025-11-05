@@ -36,6 +36,7 @@ macro_rules! blake2_impl {
         /// Compute the initial state.
         ///
         /// Panics if either `key_size` or `output_size` is greater than a word.
+        #[cfg_attr(not(feature = "size_opt"), inline(always))]
         pub fn initial_state(
             salt: &[Word; 2],
             persona: &[Word; 2],
@@ -57,9 +58,7 @@ macro_rules! blake2_impl {
                 iv1() ^ Simd4Word::new(p[4], p[5], p[6], p[7]),
             ];
 
-            [
-                h[0].0, h[0].1, h[0].2, h[0].3, h[1].0, h[1].1, h[1].2, h[1].3,
-            ]
+            unsafe { core::mem::transmute(h) }
         }
 
         /// Compresses the `message` block into the `state` vector.
@@ -68,13 +67,16 @@ macro_rules! blake2_impl {
         /// far including the current message. The `f0` flag must be set
         /// when compressing the last block. The `f1` flag must be set when
         /// compressing the last block of a layer, in tree-hashing mode.
+        #[cfg_attr(not(feature = "size_opt"), inline(always))]
         pub fn compress<const ROUNDS: usize>(
-            state: [Word; 8],
+            state: &mut [Word; 8],
             message: &[Word; 16],
             t: u64,
             f0: Word,
             f1: Word,
-        ) -> [Word; 8] {
+        ) {
+            let state: &mut [Simd4Word; 2] = unsafe { core::mem::transmute(state) };
+
             use $crate::consts::SIGMA;
 
             #[cfg_attr(not(feature = "size_opt"), inline(always))]
@@ -110,11 +112,6 @@ macro_rules! blake2_impl {
                 unshuffle(v);
             }
 
-            let mut h = [
-                Simd4Word::new(state[0], state[1], state[2], state[3]),
-                Simd4Word::new(state[4], state[5], state[6], state[7]),
-            ];
-
             let t0 = t as Word;
             let t1 = match Word::BITS {
                 64 => 0,
@@ -122,7 +119,12 @@ macro_rules! blake2_impl {
                 _ => unreachable!(),
             };
 
-            let mut v = [h[0], h[1], iv0(), iv1() ^ Simd4Word::new(t0, t1, f0, f1)];
+            let mut v = [
+                state[0],
+                state[1],
+                iv0(),
+                iv1() ^ Simd4Word::new(t0, t1, f0, f1),
+            ];
 
             // The compiler doesn't unroll the loop in this case, so we hardcode
             // the most common cases (10 and 12 rounds) to improve performance.
@@ -147,12 +149,8 @@ macro_rules! blake2_impl {
                 }
             }
 
-            h[0] = h[0] ^ (v[0] ^ v[2]);
-            h[1] = h[1] ^ (v[1] ^ v[3]);
-
-            [
-                h[0].0, h[0].1, h[0].2, h[0].3, h[1].0, h[1].1, h[1].2, h[1].3,
-            ]
+            state[0] = state[0] ^ (v[0] ^ v[2]);
+            state[1] = state[1] ^ (v[1] ^ v[3]);
         }
     };
 }
@@ -256,7 +254,7 @@ macro_rules! blake2_core_impl {
                     *v = $mod::Word::from_ne_bytes(chunk.try_into().unwrap());
                 }
 
-                self.h = $mod::compress::<{ $mod::ROUNDS }>(self.h, &m, self.t, f0, f1);
+                $mod::compress::<{ $mod::ROUNDS }>(&mut self.h, &m, self.t, f0, f1);
             }
         }
 
