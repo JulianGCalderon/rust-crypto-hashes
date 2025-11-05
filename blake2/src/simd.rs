@@ -10,14 +10,13 @@ mod simdint;
 mod simdop;
 mod simdty;
 
-pub(crate) use self::simdty::{u32x4, u64x4};
+pub(crate) use self::simdty::{Simd4, u32x4, u64x4};
 
 pub(crate) trait Vector4<T>: Copy {
     fn gather(src: &[T], i0: usize, i1: usize, i2: usize, i3: usize) -> Self;
 
     #[allow(clippy::wrong_self_convention)]
     fn from_le(self) -> Self;
-    fn to_le(self) -> Self;
 
     fn wrapping_add(self, rhs: Self) -> Self;
 
@@ -63,23 +62,6 @@ macro_rules! impl_vector4 {
                     $word::from_le(self.1),
                     $word::from_le(self.2),
                     $word::from_le(self.3),
-                )
-            }
-
-            #[cfg(target_endian = "little")]
-            #[inline(always)]
-            fn to_le(self) -> Self {
-                self
-            }
-
-            #[cfg(not(target_endian = "little"))]
-            #[inline(always)]
-            fn to_le(self) -> Self {
-                $vec::new(
-                    self.0.to_le(),
-                    self.1.to_le(),
-                    self.2.to_le(),
-                    self.3.to_le(),
                 )
             }
 
