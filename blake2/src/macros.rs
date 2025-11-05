@@ -42,7 +42,7 @@ macro_rules! blake2_impl {
             persona: &[Word; 2],
             key_size: usize,
             output_size: usize,
-        ) -> [Word; 8] {
+        ) -> [Simd4Word; 2] {
             assert!(key_size <= Word::BITS as usize);
             assert!(output_size <= Word::BITS as usize);
 
@@ -53,12 +53,10 @@ macro_rules! blake2_impl {
             p[6..8].copy_from_slice(persona);
 
             // XOR parameter block with IV.
-            let h = [
+            [
                 iv0() ^ Simd4Word::new(p[0], p[1], p[2], p[3]),
                 iv1() ^ Simd4Word::new(p[4], p[5], p[6], p[7]),
-            ];
-
-            unsafe { core::mem::transmute(h) }
+            ]
         }
 
         /// Compresses the `message` block into the `state` vector.
@@ -69,14 +67,12 @@ macro_rules! blake2_impl {
         /// compressing the last block of a layer, in tree-hashing mode.
         #[cfg_attr(not(feature = "size_opt"), inline(always))]
         pub fn compress<const ROUNDS: usize>(
-            state: &mut [Word; 8],
+            state: &mut [Simd4Word; 2],
             message: &[Word; 16],
             t: u64,
             f0: Word,
             f1: Word,
         ) {
-            let state: &mut [Simd4Word; 2] = unsafe { core::mem::transmute(state) };
-
             use $crate::consts::SIGMA;
 
             #[cfg_attr(not(feature = "size_opt"), inline(always))]
@@ -163,10 +159,10 @@ macro_rules! blake2_core_impl {
         #[derive(Clone)]
         #[doc=$vardoc]
         pub struct $name {
-            h: [$mod::Word; 8],
+            h: [$crate::simd::Simd4<$mod::Word>; 2],
             t: u64,
             #[cfg(feature = "reset")]
-            h0: [$mod::Word; 8],
+            h0: [$crate::simd::Simd4<$mod::Word>; 2],
         }
 
         impl $name {
@@ -244,7 +240,8 @@ macro_rules! blake2_core_impl {
                 out: &mut Output<Self>,
             ) {
                 self.compress(final_block, !0, flag);
-                out.copy_from_slice(self.h.map(|w| w.to_le()).as_bytes())
+                let buf = [self.h[0].to_le(), self.h[1].to_le()];
+                out.copy_from_slice(buf.as_bytes())
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $mod::Word, f1: $mod::Word) {

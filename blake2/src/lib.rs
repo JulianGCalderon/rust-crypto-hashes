@@ -40,6 +40,7 @@ mod simd;
 mod macros;
 
 use as_bytes::AsBytes;
+use simd::Vector4;
 
 /// Blake2b implementation.
 ///
