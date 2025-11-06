@@ -163,12 +163,13 @@ macro_rules! blake2_impl {
         /// compressing the last block of a layer, in tree-hashing mode.
         #[cfg_attr(not(feature = "size_opt"), inline(always))]
         pub(crate) fn compress2<const ROUNDS: usize>(
-            state: &mut [Simd4Word; 2],
+            state: &mut [Word; 8],
             message: &[Word; 16],
             t: u64,
             f0: Word,
             f1: Word,
         ) {
+            let state: &mut [Simd4Word; 2] = unsafe { core::mem::transmute(state) };
             use $crate::consts::SIGMA;
 
             #[cfg_attr(not(feature = "size_opt"), inline(always))]
@@ -352,13 +353,13 @@ macro_rules! blake2_core_impl {
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $word, f1: $word) {
-                let h = &mut self.h;
-
                 let mut m: [$mod::Word; 16] = Default::default();
                 let n = core::mem::size_of::<$word>();
                 for (v, chunk) in m.iter_mut().zip(block.chunks_exact(n)) {
                     *v = $mod::Word::from_ne_bytes(chunk.try_into().unwrap());
                 }
+
+                let h: &mut [$mod::Word; 8] = unsafe { core::mem::transmute(&mut self.h) };
 
                 $mod::compress2::<{ $mod::ROUNDS }>(h, &m, self.t, f0, f1)
             }
