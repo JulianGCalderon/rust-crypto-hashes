@@ -161,9 +161,10 @@ macro_rules! blake2_impl {
         /// far including the current message. The `f0` flag must be set
         /// when compressing the last block. The `f1` flag must be set when
         /// compressing the last block of a layer, in tree-hashing mode.
+        #[cfg_attr(not(feature = "size_opt"), inline(always))]
         pub(crate) fn compress2<const ROUNDS: usize>(
             state: &mut [Simd4Word; 2],
-            message: &[Word; 16],
+            block: &[u8; Word::BITS as usize * 2],
             t: u64,
             f0: Word,
             f1: Word,
@@ -203,6 +204,12 @@ macro_rules! blake2_impl {
                 unshuffle(v);
             }
 
+            let mut m: [Word; 16] = Default::default();
+            let n = core::mem::size_of::<$word>();
+            for (v, chunk) in m.iter_mut().zip(block.chunks_exact(n)) {
+                *v = Word::from_ne_bytes(chunk.try_into().unwrap());
+            }
+
             let t0 = t as Word;
             let t1 = match Word::BITS {
                 64 => 0,
@@ -220,23 +227,23 @@ macro_rules! blake2_impl {
             // The compiler doesn't unroll the loop in this case, so we hardcode
             // the most common cases (10 and 12 rounds) to improve performance.
             if ROUNDS == 10 || ROUNDS == 12 {
-                round(&mut v, message, &SIGMA[0]);
-                round(&mut v, message, &SIGMA[1]);
-                round(&mut v, message, &SIGMA[2]);
-                round(&mut v, message, &SIGMA[3]);
-                round(&mut v, message, &SIGMA[4]);
-                round(&mut v, message, &SIGMA[5]);
-                round(&mut v, message, &SIGMA[6]);
-                round(&mut v, message, &SIGMA[7]);
-                round(&mut v, message, &SIGMA[8]);
-                round(&mut v, message, &SIGMA[9]);
+                round(&mut v, &m, &SIGMA[0]);
+                round(&mut v, &m, &SIGMA[1]);
+                round(&mut v, &m, &SIGMA[2]);
+                round(&mut v, &m, &SIGMA[3]);
+                round(&mut v, &m, &SIGMA[4]);
+                round(&mut v, &m, &SIGMA[5]);
+                round(&mut v, &m, &SIGMA[6]);
+                round(&mut v, &m, &SIGMA[7]);
+                round(&mut v, &m, &SIGMA[8]);
+                round(&mut v, &m, &SIGMA[9]);
                 if ROUNDS == 12 {
-                    round(&mut v, message, &SIGMA[0]);
-                    round(&mut v, message, &SIGMA[1]);
+                    round(&mut v, &m, &SIGMA[0]);
+                    round(&mut v, &m, &SIGMA[1]);
                 }
             } else {
                 for i in 0..ROUNDS {
-                    round(&mut v, message, &SIGMA[i % 10]);
+                    round(&mut v, &m, &SIGMA[i % 10]);
                 }
             }
 
@@ -351,13 +358,8 @@ macro_rules! blake2_core_impl {
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $word, f1: $word) {
-                let mut m: [$word; 16] = Default::default();
-                let n = core::mem::size_of::<$word>();
-                for (v, chunk) in m.iter_mut().zip(block.chunks_exact(n)) {
-                    *v = $word::from_ne_bytes(chunk.try_into().unwrap());
-                }
                 let h = &mut self.h;
-                $mod::compress2::<{ $mod::ROUNDS }>(h, &m, self.t, f0, f1)
+                $mod::compress2::<{ $mod::ROUNDS }>(h, block.as_ref(), self.t, f0, f1)
             }
         }
 
