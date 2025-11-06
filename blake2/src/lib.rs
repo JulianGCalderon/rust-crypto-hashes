@@ -40,6 +40,8 @@ mod simd;
 mod macros;
 
 use as_bytes::AsBytes;
+use consts::{BLAKE2B_IV, BLAKE2S_IV};
+use simd::{Vector4, u32x4, u64x4};
 
 /// Blake2b implementation.
 ///
@@ -59,9 +61,15 @@ pub mod blake2b {
 blake2_core_impl!(
     Blake2bVarCore,
     "Blake2b",
-    blake2b,
+    u64,
+    u64x4,
     U64,
     U128,
+    32,
+    24,
+    16,
+    63,
+    BLAKE2B_IV,
     "Blake2b instance with a variable output.",
     "Blake2b instance with a fixed output.",
 );
@@ -116,13 +124,18 @@ pub mod blake2s {
 blake2_core_impl!(
     Blake2sVarCore,
     "Blake2s",
-    blake2s,
+    u32,
+    u32x4,
     U32,
     U64,
+    16,
+    12,
+    8,
+    7,
+    BLAKE2S_IV,
     "Blake2s instance with a variable output.",
     "Blake2s instance with a fixed output.",
 );
-
 digest::buffer_ct_variable!(
     /// BLAKE2s generic over output size.
     pub struct Blake2s<OutSize>(Blake2sVarCore);
