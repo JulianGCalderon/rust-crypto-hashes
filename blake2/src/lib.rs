@@ -61,6 +61,7 @@ pub mod blake2b {
 blake2_core_impl!(
     Blake2bVarCore,
     "Blake2b",
+    blake2b,
     u64,
     u64x4,
     U64,
@@ -124,6 +125,7 @@ pub mod blake2s {
 blake2_core_impl!(
     Blake2sVarCore,
     "Blake2s",
+    blake2s,
     u32,
     u32x4,
     U32,

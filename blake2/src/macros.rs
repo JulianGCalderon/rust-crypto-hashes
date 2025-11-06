@@ -154,12 +154,101 @@ macro_rules! blake2_impl {
                 h[0].0, h[0].1, h[0].2, h[0].3, h[1].0, h[1].1, h[1].2, h[1].3,
             ]
         }
+
+        /// Compresses the `message` block into the `state` vector.
+        ///
+        /// The `t` argument must contain the number of bytes hashed so
+        /// far including the current message. The `f0` flag must be set
+        /// when compressing the last block. The `f1` flag must be set when
+        /// compressing the last block of a layer, in tree-hashing mode.
+        pub(crate) fn compress2<const ROUNDS: usize>(
+            state: &mut [Simd4Word; 2],
+            message: &[Word; 16],
+            t: u64,
+            f0: Word,
+            f1: Word,
+        ) {
+            use $crate::consts::SIGMA;
+
+            #[cfg_attr(not(feature = "size_opt"), inline(always))]
+            fn quarter_round(v: &mut [Simd4Word; 4], rd: u32, rb: u32, m: Simd4Word) {
+                v[0] = v[0].wrapping_add(v[1]).wrapping_add(m.from_le());
+                v[3] = (v[3] ^ v[0]).rotate_right_const(rd);
+                v[2] = v[2].wrapping_add(v[3]);
+                v[1] = (v[1] ^ v[2]).rotate_right_const(rb);
+            }
+
+            #[cfg_attr(not(feature = "size_opt"), inline(always))]
+            fn shuffle(v: &mut [Simd4Word; 4]) {
+                v[1] = v[1].shuffle_left_1();
+                v[2] = v[2].shuffle_left_2();
+                v[3] = v[3].shuffle_left_3();
+            }
+
+            #[cfg_attr(not(feature = "size_opt"), inline(always))]
+            fn unshuffle(v: &mut [Simd4Word; 4]) {
+                v[1] = v[1].shuffle_right_1();
+                v[2] = v[2].shuffle_right_2();
+                v[3] = v[3].shuffle_right_3();
+            }
+
+            #[cfg_attr(not(feature = "size_opt"), inline(always))]
+            fn round(v: &mut [Simd4Word; 4], m: &[Word; 16], s: &[usize; 16]) {
+                quarter_round(v, R1, R2, Simd4Word::gather(m, s[0], s[2], s[4], s[6]));
+                quarter_round(v, R3, R4, Simd4Word::gather(m, s[1], s[3], s[5], s[7]));
+
+                shuffle(v);
+                quarter_round(v, R1, R2, Simd4Word::gather(m, s[8], s[10], s[12], s[14]));
+                quarter_round(v, R3, R4, Simd4Word::gather(m, s[9], s[11], s[13], s[15]));
+                unshuffle(v);
+            }
+
+            let t0 = t as Word;
+            let t1 = match Word::BITS {
+                64 => 0,
+                32 => (t >> 32) as Word,
+                _ => unreachable!(),
+            };
+
+            let mut v = [
+                state[0],
+                state[1],
+                iv0(),
+                iv1() ^ Simd4Word::new(t0, t1, f0, f1),
+            ];
+
+            // The compiler doesn't unroll the loop in this case, so we hardcode
+            // the most common cases (10 and 12 rounds) to improve performance.
+            if ROUNDS == 10 || ROUNDS == 12 {
+                round(&mut v, message, &SIGMA[0]);
+                round(&mut v, message, &SIGMA[1]);
+                round(&mut v, message, &SIGMA[2]);
+                round(&mut v, message, &SIGMA[3]);
+                round(&mut v, message, &SIGMA[4]);
+                round(&mut v, message, &SIGMA[5]);
+                round(&mut v, message, &SIGMA[6]);
+                round(&mut v, message, &SIGMA[7]);
+                round(&mut v, message, &SIGMA[8]);
+                round(&mut v, message, &SIGMA[9]);
+                if ROUNDS == 12 {
+                    round(&mut v, message, &SIGMA[0]);
+                    round(&mut v, message, &SIGMA[1]);
+                }
+            } else {
+                for i in 0..ROUNDS {
+                    round(&mut v, message, &SIGMA[i % 10]);
+                }
+            }
+
+            state[0] = state[0] ^ (v[0] ^ v[2]);
+            state[1] = state[1] ^ (v[1] ^ v[3]);
+        }
     };
 }
 
 macro_rules! blake2_core_impl {
     (
-        $name:ident, $alg_name:expr, $word:ident, $vec:ident, $bytes:ident,
+        $name:ident, $alg_name:expr, $mod:ident, $word:ident, $vec:ident, $bytes:ident,
         $block_size:ident, $R1:expr, $R2:expr, $R3:expr, $R4:expr, $IV:expr,
         $vardoc:expr, $doc:expr,
     ) => {
@@ -262,79 +351,13 @@ macro_rules! blake2_core_impl {
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $word, f1: $word) {
-                use $crate::consts::SIGMA;
-
-                #[cfg_attr(not(feature = "size_opt"), inline(always))]
-                fn quarter_round(v: &mut [$vec; 4], rd: u32, rb: u32, m: $vec) {
-                    v[0] = v[0].wrapping_add(v[1]).wrapping_add(m.from_le());
-                    v[3] = (v[3] ^ v[0]).rotate_right_const(rd);
-                    v[2] = v[2].wrapping_add(v[3]);
-                    v[1] = (v[1] ^ v[2]).rotate_right_const(rb);
-                }
-
-                #[cfg_attr(not(feature = "size_opt"), inline(always))]
-                fn shuffle(v: &mut [$vec; 4]) {
-                    v[1] = v[1].shuffle_left_1();
-                    v[2] = v[2].shuffle_left_2();
-                    v[3] = v[3].shuffle_left_3();
-                }
-
-                #[cfg_attr(not(feature = "size_opt"), inline(always))]
-                fn unshuffle(v: &mut [$vec; 4]) {
-                    v[1] = v[1].shuffle_right_1();
-                    v[2] = v[2].shuffle_right_2();
-                    v[3] = v[3].shuffle_right_3();
-                }
-
-                #[cfg_attr(not(feature = "size_opt"), inline(always))]
-                fn round(v: &mut [$vec; 4], m: &[$word; 16], s: &[usize; 16]) {
-                    quarter_round(v, $R1, $R2, $vec::gather(m, s[0], s[2], s[4], s[6]));
-                    quarter_round(v, $R3, $R4, $vec::gather(m, s[1], s[3], s[5], s[7]));
-
-                    shuffle(v);
-                    quarter_round(v, $R1, $R2, $vec::gather(m, s[8], s[10], s[12], s[14]));
-                    quarter_round(v, $R3, $R4, $vec::gather(m, s[9], s[11], s[13], s[15]));
-                    unshuffle(v);
-                }
-
                 let mut m: [$word; 16] = Default::default();
                 let n = core::mem::size_of::<$word>();
                 for (v, chunk) in m.iter_mut().zip(block.chunks_exact(n)) {
                     *v = $word::from_ne_bytes(chunk.try_into().unwrap());
                 }
                 let h = &mut self.h;
-
-                let t0 = self.t as $word;
-                let t1 = match $bytes::to_u8() {
-                    64 => 0,
-                    32 => (self.t >> 32) as $word,
-                    _ => unreachable!(),
-                };
-
-                let mut v = [
-                    h[0],
-                    h[1],
-                    Self::iv0(),
-                    Self::iv1() ^ $vec::new(t0, t1, f0, f1),
-                ];
-
-                round(&mut v, &m, &SIGMA[0]);
-                round(&mut v, &m, &SIGMA[1]);
-                round(&mut v, &m, &SIGMA[2]);
-                round(&mut v, &m, &SIGMA[3]);
-                round(&mut v, &m, &SIGMA[4]);
-                round(&mut v, &m, &SIGMA[5]);
-                round(&mut v, &m, &SIGMA[6]);
-                round(&mut v, &m, &SIGMA[7]);
-                round(&mut v, &m, &SIGMA[8]);
-                round(&mut v, &m, &SIGMA[9]);
-                if $bytes::to_u8() == 64 {
-                    round(&mut v, &m, &SIGMA[0]);
-                    round(&mut v, &m, &SIGMA[1]);
-                }
-
-                h[0] = h[0] ^ (v[0] ^ v[2]);
-                h[1] = h[1] ^ (v[1] ^ v[3]);
+                $mod::compress2::<{ $mod::ROUNDS }>(h, &m, self.t, f0, f1)
             }
         }
 
