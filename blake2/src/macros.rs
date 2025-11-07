@@ -160,17 +160,8 @@ macro_rules! blake2_impl {
         pub(crate) struct State(pub [Simd4Word; 2]);
 
         impl State {
-            pub(crate) fn serialize(&self) -> [Word; 8] {
-                return [
-                    self.0[0].0,
-                    self.0[0].1,
-                    self.0[0].2,
-                    self.0[0].3,
-                    self.0[1].0,
-                    self.0[1].1,
-                    self.0[1].2,
-                    self.0[1].3,
-                ];
+            pub(crate) fn as_bytes(self) -> [u8; Word::BITS as usize] {
+                unsafe { core::mem::transmute([self.0[0].to_le(), self.0[1].to_le()]) }
             }
         }
 
@@ -376,8 +367,8 @@ macro_rules! blake2_core_impl {
                 out: &mut Output<Self>,
             ) {
                 self.compress(final_block, !0, flag);
-                let buf = self.h.serialize();
-                out.copy_from_slice(buf.as_bytes().as_bytes())
+                let buf = self.h.as_bytes();
+                out.copy_from_slice(&buf)
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $word, f1: $word) {
