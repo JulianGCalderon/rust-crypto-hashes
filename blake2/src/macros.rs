@@ -159,6 +159,21 @@ macro_rules! blake2_impl {
         #[repr(transparent)]
         pub(crate) struct State(pub [Simd4Word; 2]);
 
+        impl State {
+            pub(crate) fn serialize(&self) -> [Word; 8] {
+                return [
+                    self.0[0].0,
+                    self.0[0].1,
+                    self.0[0].2,
+                    self.0[0].3,
+                    self.0[1].0,
+                    self.0[1].1,
+                    self.0[1].2,
+                    self.0[1].3,
+                ];
+            }
+        }
+
         #[cfg(feature = "zeroize")]
         impl digest::zeroize::Zeroize for State {
             fn zeroize(&mut self) {
@@ -361,20 +376,8 @@ macro_rules! blake2_core_impl {
                 out: &mut Output<Self>,
             ) {
                 self.compress(final_block, !0, flag);
-                out.copy_from_slice(
-                    [
-                        self.h.0[0].0,
-                        self.h.0[0].1,
-                        self.h.0[0].2,
-                        self.h.0[0].3,
-                        self.h.0[1].0,
-                        self.h.0[1].1,
-                        self.h.0[1].2,
-                        self.h.0[1].3,
-                    ]
-                    .map(|w| w.to_le())
-                    .as_bytes(),
-                )
+                let buf = self.h.serialize();
+                out.copy_from_slice(buf.as_bytes().as_bytes())
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $word, f1: $word) {
