@@ -155,6 +155,18 @@ macro_rules! blake2_impl {
             ]
         }
 
+        #[derive(Copy, Clone)]
+        #[repr(transparent)]
+        pub(crate) struct State(pub [Simd4Word; 2]);
+
+        #[cfg(feature = "zeroize")]
+        impl digest::zeroize::Zeroize for State {
+            fn zeroize(&mut self) {
+                self.0[0].zeroize();
+                self.0[1].zeroize();
+            }
+        }
+
         /// Compresses the `message` block into the `state` vector.
         ///
         /// The `t` argument must contain the number of bytes hashed so
@@ -163,12 +175,13 @@ macro_rules! blake2_impl {
         /// compressing the last block of a layer, in tree-hashing mode.
         #[cfg_attr(not(feature = "size_opt"), inline(always))]
         pub(crate) fn compress2<const ROUNDS: usize>(
-            state: &mut [Simd4Word; 2],
+            state: &mut State,
             message: &[Word; 16],
             t: u64,
             f0: Word,
             f1: Word,
         ) {
+            let state = &mut state.0;
             use $crate::consts::SIGMA;
 
             #[cfg_attr(not(feature = "size_opt"), inline(always))]
@@ -256,10 +269,10 @@ macro_rules! blake2_core_impl {
         #[derive(Clone)]
         #[doc=$vardoc]
         pub struct $name {
-            h: [$vec; 2],
+            h: $mod::State,
             t: u64,
             #[cfg(feature = "reset")]
-            h0: [$vec; 2],
+            h0: $mod::State,
         }
 
         impl $name {
@@ -332,6 +345,7 @@ macro_rules! blake2_core_impl {
                     Self::iv0() ^ $vec::new(p[0], p[1], p[2], p[3]),
                     Self::iv1() ^ $vec::new(p[4], p[5], p[6], p[7]),
                 ];
+                let h = $mod::State(h);
                 $name {
                     #[cfg(feature = "reset")]
                     h0: h.clone(),
@@ -347,7 +361,7 @@ macro_rules! blake2_core_impl {
                 out: &mut Output<Self>,
             ) {
                 self.compress(final_block, !0, flag);
-                let buf = [self.h[0].to_le(), self.h[1].to_le()];
+                let buf = [self.h.0[0].to_le(), self.h.0[1].to_le()];
                 out.copy_from_slice(buf.as_bytes())
             }
 
