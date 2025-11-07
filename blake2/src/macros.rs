@@ -257,10 +257,10 @@ macro_rules! blake2_core_impl {
         #[derive(Clone)]
         #[doc=$vardoc]
         pub struct $name {
-            h: [$vec; 2],
+            h: [$mod::Word; 8],
             t: u64,
             #[cfg(feature = "reset")]
-            h0: [$vec; 2],
+            h0: [$mod::Word; 8],
         }
 
         impl $name {
@@ -333,6 +333,7 @@ macro_rules! blake2_core_impl {
                     Self::iv0() ^ $vec::new(p[0], p[1], p[2], p[3]),
                     Self::iv1() ^ $vec::new(p[4], p[5], p[6], p[7]),
                 ];
+                let h: [$mod::Word; 8] = unsafe { core::mem::transmute(h) };
                 $name {
                     #[cfg(feature = "reset")]
                     h0: h.clone(),
@@ -348,8 +349,7 @@ macro_rules! blake2_core_impl {
                 out: &mut Output<Self>,
             ) {
                 self.compress(final_block, !0, flag);
-                let buf = [self.h[0].to_le(), self.h[1].to_le()];
-                out.copy_from_slice(buf.as_bytes())
+                out.copy_from_slice(self.h.map(|v| v.to_le()).as_bytes())
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $word, f1: $word) {
@@ -358,10 +358,7 @@ macro_rules! blake2_core_impl {
                 for (v, chunk) in m.iter_mut().zip(block.chunks_exact(n)) {
                     *v = $mod::Word::from_ne_bytes(chunk.try_into().unwrap());
                 }
-
-                let h: &mut [$mod::Word; 8] = unsafe { core::mem::transmute(&mut self.h) };
-
-                $mod::compress2::<{ $mod::ROUNDS }>(h, &m, self.t, f0, f1)
+                $mod::compress2::<{ $mod::ROUNDS }>(&mut self.h, &m, self.t, f0, f1)
             }
         }
 
