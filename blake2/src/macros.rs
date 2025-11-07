@@ -361,8 +361,20 @@ macro_rules! blake2_core_impl {
                 out: &mut Output<Self>,
             ) {
                 self.compress(final_block, !0, flag);
-                let buf = [self.h.0[0].to_le(), self.h.0[1].to_le()];
-                out.copy_from_slice(buf.as_bytes())
+                out.copy_from_slice(
+                    [
+                        self.h.0[0].0,
+                        self.h.0[0].1,
+                        self.h.0[0].2,
+                        self.h.0[0].3,
+                        self.h.0[1].0,
+                        self.h.0[1].1,
+                        self.h.0[1].2,
+                        self.h.0[1].3,
+                    ]
+                    .map(|w| w.to_le())
+                    .as_bytes(),
+                )
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $word, f1: $word) {
