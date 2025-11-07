@@ -1,7 +1,6 @@
 macro_rules! blake2_impl {
     (
         word: $word:ty;
-        state: $state:ty;
         R1: $r1:expr;
         R2: $r2:expr;
         R3: $r3:expr;
@@ -32,44 +31,6 @@ macro_rules! blake2_impl {
         #[inline(always)]
         fn iv1() -> Simd4Word {
             Simd4Word::new(IV[4], IV[5], IV[6], IV[7])
-        }
-
-        /// Internal state.
-        ///
-        /// It allows to use an optimized representation of the state, without
-        /// exposing implementation details.
-        #[derive(Copy, Clone)]
-        #[repr(transparent)]
-        pub struct State([Simd4Word; 2]);
-        impl State {
-            /// Serialize the internal state into a word vector
-            pub fn serialize(&self) -> [Word; 8] {
-                [
-                    self.0[0].0,
-                    self.0[0].1,
-                    self.0[0].2,
-                    self.0[0].3,
-                    self.0[1].0,
-                    self.0[1].1,
-                    self.0[1].2,
-                    self.0[1].3,
-                ]
-            }
-
-            /// Deserialize the internal state from a word vector
-            pub fn deserialize(serialized: &[Word; 8]) -> Self {
-                Self([
-                    Simd4Word::new(serialized[0], serialized[1], serialized[2], serialized[3]),
-                    Simd4Word::new(serialized[4], serialized[5], serialized[6], serialized[7]),
-                ])
-            }
-        }
-        #[cfg(feature = "zeroize")]
-        impl digest::zeroize::Zeroize for State {
-            fn zeroize(&mut self) {
-                self.0[0].zeroize();
-                self.0[1].zeroize();
-            }
         }
 
         /// Compute the initial state.
@@ -202,7 +163,7 @@ macro_rules! blake2_impl {
         /// compressing the last block of a layer, in tree-hashing mode.
         #[cfg_attr(not(feature = "size_opt"), inline(always))]
         pub(crate) fn compress2<const ROUNDS: usize>(
-            state: &mut State,
+            state: &mut [Simd4Word; 2],
             message: &[Word; 16],
             t: u64,
             f0: Word,
@@ -251,8 +212,8 @@ macro_rules! blake2_impl {
             };
 
             let mut v = [
-                state.0[0],
-                state.0[1],
+                state[0],
+                state[1],
                 iv0(),
                 iv1() ^ Simd4Word::new(t0, t1, f0, f1),
             ];
@@ -280,8 +241,8 @@ macro_rules! blake2_impl {
                 }
             }
 
-            state.0[0] = state.0[0] ^ (v[0] ^ v[2]);
-            state.0[1] = state.0[1] ^ (v[1] ^ v[3]);
+            state[0] = state[0] ^ (v[0] ^ v[2]);
+            state[1] = state[1] ^ (v[1] ^ v[3]);
         }
     };
 }
@@ -295,10 +256,10 @@ macro_rules! blake2_core_impl {
         #[derive(Clone)]
         #[doc=$vardoc]
         pub struct $name {
-            h: $mod::State,
+            h: [$vec; 2],
             t: u64,
             #[cfg(feature = "reset")]
-            h0: $mod::State,
+            h0: [$vec; 2],
         }
 
         impl $name {
@@ -371,10 +332,6 @@ macro_rules! blake2_core_impl {
                     Self::iv0() ^ $vec::new(p[0], p[1], p[2], p[3]),
                     Self::iv1() ^ $vec::new(p[4], p[5], p[6], p[7]),
                 ];
-                let h = [
-                    h[0].0, h[0].1, h[0].2, h[0].3, h[1].0, h[1].1, h[1].2, h[1].3,
-                ];
-                let h = $mod::State::deserialize(&h);
                 $name {
                     #[cfg(feature = "reset")]
                     h0: h.clone(),
@@ -390,16 +347,20 @@ macro_rules! blake2_core_impl {
                 out: &mut Output<Self>,
             ) {
                 self.compress(final_block, !0, flag);
-                out.copy_from_slice(self.h.serialize().map(|v| v.to_le()).as_bytes())
+                let buf = [self.h[0].to_le(), self.h[1].to_le()];
+                out.copy_from_slice(buf.as_bytes())
             }
 
             fn compress(&mut self, block: &Block<Self>, f0: $word, f1: $word) {
+                let h = &mut self.h;
+
                 let mut m: [$mod::Word; 16] = Default::default();
                 let n = core::mem::size_of::<$word>();
                 for (v, chunk) in m.iter_mut().zip(block.chunks_exact(n)) {
                     *v = $mod::Word::from_ne_bytes(chunk.try_into().unwrap());
                 }
-                $mod::compress2::<{ $mod::ROUNDS }>(&mut self.h, &m, self.t, f0, f1)
+
+                $mod::compress2::<{ $mod::ROUNDS }>(h, &m, self.t, f0, f1)
             }
         }
 

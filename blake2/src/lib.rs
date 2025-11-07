@@ -49,7 +49,6 @@ use simd::{Vector4, u32x4, u64x4};
 pub mod blake2b {
     blake2_impl!(
         word: u64;
-        state: digest::consts::U64;
         R1: 32;
         R2: 24;
         R3: 16;
@@ -114,7 +113,6 @@ pub type Blake2bMac512 = Blake2bMac<U64>;
 pub mod blake2s {
     blake2_impl!(
         word: u32;
-        state: digest::consts::U32;
         R1: 16;
         R2: 12;
         R3: 8;
